@@ -23,6 +23,7 @@ import os
 import time
 
 from kalshi_bot.kalshi_auth import KalshiKey
+from kalshi_bot.collectors.kalshi_rest import KalshiRestConfig, get_json
 from kalshi_bot.collectors.kalshi_venue import KalshiConfig, KalshiVenue
 
 
@@ -36,7 +37,7 @@ def _env_required(name: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--env", choices=["demo", "prod"], default="demo")
-    ap.add_argument("--ticker", required=True, help="market ticker")
+    ap.add_argument("--ticker", default="", help="market ticker (omit to auto-pick active KXBTC15M)")
     ap.add_argument("--side", choices=["yes", "no"], default="yes")
     ap.add_argument("--action", choices=["buy", "sell"], default="buy")
     ap.add_argument("--price", type=int, default=1, help="price in cents (1-99)")
@@ -52,12 +53,34 @@ def main() -> int:
         private_key_path=_env_required("KALSHI_PRIVATE_KEY_PATH"),
     )
 
+    # pick active market if ticker not provided
+    ticker = args.ticker
+    if not ticker:
+        rest_cfg = KalshiRestConfig(env="demo")
+        data = get_json(
+            cfg=rest_cfg,
+            key=key,
+            path="/trade-api/v2/markets",
+            params={"limit": 50, "series_ticker": "KXBTC15M", "status": "open"},
+        )
+        markets = data.get("markets") or []
+        for m in markets:
+            if (m.get("status") or "").lower() == "active":
+                ticker = m.get("ticker") or m.get("market_ticker")
+                break
+        if not ticker and markets:
+            m0 = markets[0]
+            ticker = m0.get("ticker") or m0.get("market_ticker")
+
+    if not ticker:
+        raise SystemExit("No market ticker provided and could not auto-pick an active KXBTC15M market")
+
     v = KalshiVenue(KalshiConfig(env="demo"), key)
 
     client_order_id = f"demo_{int(time.time()*1000)}"
 
     body = {
-        "ticker": args.ticker,
+        "ticker": ticker,
         "client_order_id": client_order_id,
         "side": args.side,
         "action": args.action,

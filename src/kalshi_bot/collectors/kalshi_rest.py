@@ -24,7 +24,7 @@ from ..kalshi_auth import KalshiKey, rest_auth_headers
 @dataclass(frozen=True)
 class KalshiRestConfig:
     env: str = "demo"  # demo|prod
-    timeout_sec: float = 20.0
+    timeout_sec: float = 50.0
 
     @property
     def base_url(self) -> str:

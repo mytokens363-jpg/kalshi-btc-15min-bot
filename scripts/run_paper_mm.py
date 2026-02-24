@@ -54,9 +54,9 @@ def main() -> int:
         state_path.write_text(f'{{"cash_cents": {int(args.cash*100)} }}')
 
     limits = RiskLimits(
-        max_contracts_per_side_per_market=10,
-        max_open_contracts_total=50,
-        max_filled_contracts_per_day=50,
+        max_contracts_per_side_per_market=20,
+        max_open_contracts_total=200,
+        max_filled_contracts_per_day=200,
     )
     qcfg = QuoteConfig(tight=bool(args.tight), quote_size=1)
 

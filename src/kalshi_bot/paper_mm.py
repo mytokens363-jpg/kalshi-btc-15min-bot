@@ -134,6 +134,85 @@ def _inc_filled_today(st: Dict[str, Any], n: int) -> None:
     d["filled"] = int(d.get("filled", 0)) + int(n)
 
 
+def _utc_day_key_from_ts(ts: int) -> str:
+    return time.strftime("%Y-%m-%d", time.gmtime(int(ts)))
+
+
+def _realized_pnl_today_cents(st: Dict[str, Any], day_key: str) -> int:
+    total = 0
+    for r in st.get("realized", []) or []:
+        try:
+            ts = int(r.get("ts", 0) or 0)
+            if not ts:
+                continue
+            if _utc_day_key_from_ts(ts) != day_key:
+                continue
+            total += int(r.get("pnl_cents", 0) or 0)
+        except Exception:
+            continue
+    return int(total)
+
+
+def _nonzero_position_markets(st: Dict[str, Any]) -> int:
+    n = 0
+    for _m, pos in (st.get("positions") or {}).items():
+        try:
+            if int(pos.get("yes_qty", 0) or 0) != 0 or int(pos.get("no_qty", 0) or 0) != 0:
+                n += 1
+        except Exception:
+            continue
+    return int(n)
+
+
+def _open_orders_count(st: Dict[str, Any]) -> int:
+    n = 0
+    for _m, sides in (st.get("open_orders") or {}).items():
+        if not isinstance(sides, dict):
+            continue
+        for s in ("yes", "no"):
+            o = sides.get(s)
+            if not isinstance(o, dict):
+                continue
+            try:
+                if int(o.get("remaining", 0) or 0) > 0:
+                    n += 1
+            except Exception:
+                continue
+    return int(n)
+
+
+def _update_daily_metrics(st: Dict[str, Any], mtm: Dict[str, Any]) -> None:
+    """Persist lightweight daily cash/equity metrics for summary/reconciliation.
+
+    Stored under st[daily][YYYY-MM-DD] using UTC day keys to match bot summary.
+    """
+    day = _now_day_key()
+    d = st.setdefault("daily", {}).setdefault(day, {"filled": 0})
+
+    cash_cents = int(st.get("cash_cents", 0) or 0)
+    equity_cents = int(mtm.get("equity_cents", cash_cents) or cash_cents)
+    unreal_cents = int(mtm.get("unrealized_cents", 0) or 0)
+
+    # first seen (start-of-day snapshot)
+    d.setdefault("cash_cents_first", cash_cents)
+    d.setdefault("equity_cents_first", equity_cents)
+
+    # rolling last seen
+    d["cash_cents_last"] = cash_cents
+    d["equity_cents_last"] = equity_cents
+    d["unrealized_cents_last"] = unreal_cents
+
+    # extrema
+    d["cash_cents_min"] = min(int(d.get("cash_cents_min", cash_cents) or cash_cents), cash_cents)
+    d["cash_cents_max"] = max(int(d.get("cash_cents_max", cash_cents) or cash_cents), cash_cents)
+
+    d["realized_pnl_cents_today"] = _realized_pnl_today_cents(st, day)
+    d["open_orders_count"] = _open_orders_count(st)
+    d["nonzero_position_markets"] = _nonzero_position_markets(st)
+    d["updated_ts"] = int(time.time())
+
+
+
 def _total_open_contracts(st: Dict[str, Any]) -> int:
     # inventory based cap across markets
     total = 0
@@ -426,6 +505,9 @@ def run_once(
 
     # B) MTM
     mtm = mark_to_market(cfg, key, st)
+
+    # Persist daily metrics for later reconciliation (cash/equity/unrealized/etc.)
+    _update_daily_metrics(st, mtm)
 
     save_state(state_path, st)
 

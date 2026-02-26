@@ -35,6 +35,16 @@ def main() -> int:
     today_key = day_keys[-1] if day_keys else None
     filled_today = int(daily.get(today_key, {}).get("filled", 0)) if today_key else 0
 
+    # Optional richer daily metrics (written by paper_mm)
+    d_today = daily.get(today_key, {}) if today_key else {}
+    cash_first = d_today.get("cash_cents_first")
+    cash_last = d_today.get("cash_cents_last")
+    equity_last = d_today.get("equity_cents_last")
+    unreal_last = d_today.get("unrealized_cents_last")
+    realized_today = d_today.get("realized_pnl_cents_today")
+    open_orders_count = d_today.get("open_orders_count")
+    nonzero_pos_mkts = d_today.get("nonzero_position_markets")
+
     realized = st.get("realized", []) or []
     realized_pnl_cents = sum(int(x.get("pnl_cents", 0)) for x in realized)
 
@@ -43,6 +53,19 @@ def main() -> int:
 
     print(f"Kalshi PAPER-MM summary")
     print(f"- cash: ${cash:.2f}")
+
+    if today_key and cash_first is not None and cash_last is not None:
+        print(f"- cash (today start→last): ${int(cash_first)/100:.2f} → ${int(cash_last)/100:.2f}")
+    if today_key and equity_last is not None:
+        eq = int(equity_last)/100.0
+        un = int(unreal_last)/100.0 if unreal_last is not None else 0.0
+        print(f"- est equity (last): ${eq:.2f} (unrealized ${un:.2f})")
+    if today_key and realized_today is not None:
+        print(f"- realized PnL (today): ${int(realized_today)/100.0:.2f}")
+    if today_key and open_orders_count is not None:
+        print(f"- open orders (working): {int(open_orders_count)}")
+    if today_key and nonzero_pos_mkts is not None:
+        print(f"- markets w/ inventory: {int(nonzero_pos_mkts)}")
     print(f"- realized PnL (all-time): ${realized_pnl_cents/100.0:.2f} (n={len(realized)})")
     if today_key:
         print(f"- filled today ({today_key} UTC): {filled_today}")

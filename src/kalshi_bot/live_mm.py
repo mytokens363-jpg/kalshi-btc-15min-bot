@@ -189,7 +189,7 @@ def place_order(
         print(f"[place_order error] {e.code}: {err}")
         # Only alert on non-transient errors (not 429/503)
         if e.code not in (429, 503, 504):
-            _tg_send(f"❌ Kalshi order error: {e.code} {err[:150]}")
+            pass  # errors logged only
         return None
     except Exception as e:
         print(f"[place_order error] {e}")
@@ -252,7 +252,7 @@ def run_once(
     if loss >= HARD_DAILY_LOSS_LIMIT_CENTS:
         msg = f"🛑 Kalshi live MM HALTED — daily loss ${loss/100:.2f} exceeds ${HARD_DAILY_LOSS_LIMIT_CENTS/100:.0f} limit"
         print(msg)
-        _tg_send(msg)
+        pass  # halt logged, daily summary reports it
         save_state(state_path, st)
         return {**summary, "halted": True, "reason": "daily_loss_limit"}
 
@@ -289,7 +289,7 @@ def run_once(
                     summary["fills_detected"] += new_fills
                     fill_msg = f"✅ Kalshi fill: {side} {new_fills}x {market} @ {price}¢"
                     print(fill_msg)
-                    _tg_send(fill_msg)
+                    pass  # fill logged, reported in daily summary
                     log_order(log_path, {"event": "fill", "side": side, "count": new_fills, "price": price, "market": market})
                 open_orders[side] = {}
                 summary["cancelled"] += 1

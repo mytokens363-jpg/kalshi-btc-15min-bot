@@ -187,12 +187,13 @@ def place_order(
     except urllib.error.HTTPError as e:
         err = e.read().decode()
         print(f"[place_order error] {e.code}: {err}")
-        _tg_send(f"❌ Kalshi order error: {e.code} {err[:200]}")
+        # Only alert on non-transient errors (not 429/503)
+        if e.code not in (429, 503, 504):
+            _tg_send(f"❌ Kalshi order error: {e.code} {err[:150]}")
         return None
     except Exception as e:
         print(f"[place_order error] {e}")
-        _tg_send(f"❌ Kalshi order error: {e}")
-        return None
+        return None  # Silent — transient network errors, don't spam
 
 
 def cancel_order(*, cfg: KalshiRestConfig, key: KalshiKey, order_id: str) -> bool:

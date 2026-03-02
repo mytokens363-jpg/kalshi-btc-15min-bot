@@ -19,7 +19,7 @@ from kalshi_bot.collectors.kalshi_rest import KalshiRestConfig
 from kalshi_bot.paper_mm import QuoteConfig
 from kalshi_bot.live_mm import run_once
 
-PROD_BASE_URL = "https://trading.kalshi.com"
+PROD_BASE_URL = "https://api.elections.kalshi.com"
 
 
 def _env(name: str) -> str:
@@ -46,7 +46,7 @@ def main() -> int:
         access_key_id=_env("KALSHI_PROD_ACCESS_KEY_ID"),
         private_key_path=_env("KALSHI_PROD_PRIVATE_KEY_PATH"),
     )
-    cfg = KalshiRestConfig(base_url=PROD_BASE_URL)
+    cfg = KalshiRestConfig(env="prod")
     qcfg = QuoteConfig(tight=args.tight, quote_size=min(args.size, 5))
 
     repo_root = Path(__file__).resolve().parents[1]

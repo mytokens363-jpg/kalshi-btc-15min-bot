@@ -176,7 +176,7 @@ def place_order(
 
     payload = json.dumps(body).encode()
     req = urllib.request.Request(
-        f"{cfg.base_url}/trade-api/v2/orders",
+        f"{cfg.base_url}/trade-api/v2/orders",  # cfg.base_url uses env='prod'
         data=payload,
         headers=headers,
         method="POST",

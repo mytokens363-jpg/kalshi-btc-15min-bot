@@ -60,15 +60,42 @@ def count_today_orders() -> tuple[int, int]:
     return placed, filled
 
 
-def main() -> None:
-    st = load_state()
-    today = today_key()
+def fetch_live_balance() -> dict:
+    """Pull real account data from Kalshi API."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+        from kalshi_bot.kalshi_auth import KalshiKey
+        from kalshi_bot.collectors.kalshi_rest import KalshiRestConfig, get_json
+        key = KalshiKey(
+            access_key_id="ca30aa24-7fbb-4f8c-abbe-2bbc6d6bc48c",
+            private_key_path="/root/.secrets/kalshi_prod.pem",
+        )
+        cfg = KalshiRestConfig(env="prod")
+        bal = get_json(cfg=cfg, key=key, path="/trade-api/v2/portfolio/balance")
+        orders = get_json(cfg=cfg, key=key, path="/trade-api/v2/portfolio/orders", params={"status": "resting"})
+        return {
+            "cash_cents": bal.get("balance", 0),
+            "portfolio_cents": bal.get("portfolio_value", 0),
+            "resting_orders": len(orders.get("orders") or []),
+        }
+    except Exception as e:
+        print(f"[balance fetch error] {e}")
+        return {}
 
-    daily = (st.get("daily") or {}).get(today, {})
-    cash_start = daily.get("cash_cents_first", st.get("cash_cents", 24770))
-    cash_now   = daily.get("cash_cents_last",  st.get("cash_cents", 24770))
-    realized   = daily.get("realized_pnl_cents_today", 0)
-    halted     = st.get("halted", False)
+
+def main() -> None:
+    st    = load_state()
+    today = today_key()
+    live  = fetch_live_balance()
+
+    cash_cents     = live.get("cash_cents", 0)
+    portfolio_cents = live.get("portfolio_cents", 0)
+    total_cents    = cash_cents + portfolio_cents
+    resting        = live.get("resting_orders", 0)
+
+    daily    = (st.get("daily") or {}).get(today, {})
+    realized = daily.get("realized_pnl_cents_today", 0)
+    halted   = st.get("halted", False)
 
     placed, filled = count_today_orders()
 
@@ -76,11 +103,13 @@ def main() -> None:
     pnl_str  = f"{pnl_sign}${realized/100:.2f}"
 
     lines = [
-        f"📊 <b>Kalshi Daily Summary</b> — {today}",
+        f"📊 <b>Kalshi Live Summary</b> — {today}",
         f"",
-        f"💰 Cash:     ${cash_now/100:.2f}",
-        f"📈 P&L:      {pnl_str}",
-        f"📋 Orders:   {placed} placed / {filled} filled",
+        f"💰 Cash:      ${cash_cents/100:.2f}",
+        f"📦 Positions: ${portfolio_cents/100:.2f}",
+        f"🏦 Total:     ${total_cents/100:.2f}",
+        f"📈 P&L today: {pnl_str}",
+        f"📋 Orders:    {placed} placed / {filled} filled / {resting} resting",
     ]
 
     if halted:

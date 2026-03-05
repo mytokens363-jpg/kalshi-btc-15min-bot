@@ -43,15 +43,23 @@ from .paper_mm import (
 # ── BTC price feed ───────────────────────────────────────────────────────────
 
 def get_btc_mid() -> Optional[float]:
-    """Fetch BTC/USDT mid price from Binance REST (no auth needed). Returns None on error."""
+    """Fetch BTC mid price — Binance primary, Coinbase fallback (Binance geo-blocked on VPS)."""
+    # Try Coinbase first (works on VPS; Binance returns 451 geo-block)
     try:
-        url = "https://fapi.binance.com/fapi/v1/ticker/bookTicker?symbol=BTCUSDT"
+        url = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=5) as r:
             d = json.loads(r.read())
-            bid = float(d["bidPrice"])
-            ask = float(d["askPrice"])
-            return (bid + ask) / 2
+            return float(d["data"]["amount"])
+    except Exception:
+        pass
+    # Fallback: CoinGecko
+    try:
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            d = json.loads(r.read())
+            return float(d["bitcoin"]["usd"])
     except Exception:
         return None
 
